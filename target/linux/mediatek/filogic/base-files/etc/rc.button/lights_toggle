@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Front LED on/off button: toggle the LED supply switch, like the stock
+# firmware of the Arcadyan Futura does with its "led_allswitch".
+
+[ "${ACTION}" = "released" ] || exit 0
+
+led=/sys/class/leds/led-allswitch
+[ -d "$led" ] || exit 0
+
+if [ "$(cat "$led/brightness")" = "0" ]; then
+	echo 1 > "$led/brightness"
+else
+	echo 0 > "$led/brightness"
+fi
+
+return 0

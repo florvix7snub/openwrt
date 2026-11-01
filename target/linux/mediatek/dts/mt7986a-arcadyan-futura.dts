@@ -1,0 +1,300 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Arcadyan Futura (MT7986A, eMMC), a MediaTek MT7986A eMMC RFB derivative.
+ *
+ * Based on mt7986a-rfb.dtsi using mainline clock/pinctrl bindings; the
+ * vendor (5.4) DTB uses vendor SDK clock IDs and cannot be reused as-is.
+ * See &mmc0 for the eMMC clock quirk of this board.
+ */
+
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+
+#include "mt7986a-rfb.dtsi"
+
+/ {
+	model = "Arcadyan Futura";
+	compatible = "arcadyan,futura", "mediatek,mt7986a";
+
+	aliases {
+		led-boot = &led_status_green;
+		led-failsafe = &led_status_red;
+		led-running = &led_status_green;
+		led-upgrade = &led_status_red;
+	};
+
+	chosen {
+		/*
+		 * Stock U-Boot always passes the saved bootargs (root=p8 and
+		 * init=/sbin/preinit), whichever bank boot_select picks.
+		 * OpenWrt lives in bank A: kernel in p5 ("kernel"), rootfs in
+		 * p6 ("rootfs"), booted with boot_select=0. Stock firmware in
+		 * bank B (p7/p8) is left untouched.
+		 */
+		bootargs-override = "console=ttyS0,115200n1 loglevel=8 earlycon=uart8250,mmio32,0x11002000 root=/dev/mmcblk0p6 rootwait rootfstype=squashfs,f2fs";
+	};
+
+	/*
+	 * Buttons from the stock /etc/gpio/button_map.txt. Pins 9 and 10 are
+	 * also the PCIe clk/wake pins; PCIe has no device and releases them.
+	 */
+	keys {
+		compatible = "gpio-keys";
+
+		button-reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&pio 9 GPIO_ACTIVE_LOW>;
+		};
+
+		button-wps {
+			label = "wps";
+			linux,code = <KEY_WPS_BUTTON>;
+			gpios = <&pio 10 GPIO_ACTIVE_LOW>;
+		};
+
+		button-leds {
+			label = "leds";
+			linux,code = <KEY_LIGHTS_TOGGLE>;
+			gpios = <&pio 15 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	/*
+	 * Front LEDs, pins from the stock /etc/gpio/led_map_R0B.txt (the
+	 * Wi-Fi, LTE, Internet and Voice LEDs). They are wired active-low and
+	 * powered through the "led_allswitch" pin 16, which the lamp button
+	 * toggles (/etc/rc.button/lights_toggle), as on stock. Unlike the stock
+	 * map says, pin 16 enables the LEDs when high. The Voice LED is unused
+	 * on OpenWrt and serves as the status LED.
+	 */
+	leds {
+		compatible = "gpio-leds";
+
+		led-allswitch {
+			label = "led-allswitch";
+			gpios = <&pio 16 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		led-0 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WLAN;
+			gpios = <&pio 13 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "phy0radio";
+		};
+
+		led-1 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_MOBILE;
+			gpios = <&pio 12 GPIO_ACTIVE_LOW>;
+		};
+
+		led-2 {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_MOBILE;
+			gpios = <&pio 35 GPIO_ACTIVE_LOW>;
+		};
+
+		led-3 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WAN;
+			gpios = <&pio 14 GPIO_ACTIVE_LOW>;
+		};
+
+		led_status_green: led-4 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&pio 31 GPIO_ACTIVE_LOW>;
+		};
+
+		led_status_red: led-5 {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&pio 32 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	/* Stand-in for the MSDC "source_cg", see &mmc0 */
+	msdc_src_cg_dummy: clock-msdc-src-cg-dummy {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <416000000>;
+	};
+};
+
+&mmc0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/*
+	 * On this board MSDC_CFG drops writes while the infra_msdc gate is
+	 * closed, and mtk-sd gates "source_cg" around every clock divider
+	 * write, so the card stays on the 52 MHz clock left by U-Boot and
+	 * CMD1 fails. The stock firmware keeps infra_msdc always on (via its
+	 * clk-bring-up node). Do the same: hold infra_msdc through "axi_cg",
+	 * which is only gated on runtime suspend, and give "source_cg" a
+	 * dummy clock so the divider writes land.
+	 */
+	clocks = <&topckgen CLK_TOP_EMMC_416M_SEL>,
+		 <&infracfg CLK_INFRA_MSDC_HCK_CK>,
+		 <&msdc_src_cg_dummy>,
+		 <&infracfg CLK_INFRA_MSDC_133M_CK>,
+		 <&infracfg CLK_INFRA_MSDC_66M_CK>,
+		 <&infracfg CLK_INFRA_MSDC_CK>;
+	clock-names = "source", "hclk", "source_cg", "bus_clk",
+		      "sys_cg", "axi_cg";
+
+	card@0 {
+		compatible = "mmc-card";
+		reg = <0>;
+
+		block {
+			compatible = "block-device";
+
+			partitions {
+				block-partition-factory {
+					/* mmcblk0p3 holds the MT7986 Wi-Fi EEPROM */
+					partno = <3>;
+
+					nvmem-layout {
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						eeprom_factory_0: eeprom@0 {
+							reg = <0x0 0x1000>;
+						};
+					};
+				};
+			};
+		};
+	};
+};
+
+&wifi {
+	nvmem-cells = <&eeprom_factory_0>;
+	nvmem-cell-names = "eeprom";
+};
+
+/*
+ * MT7531 ports 0-3 are the yellow LAN ports, port 4 is the blue WAN port
+ * (the stock kernel mirrors port 4 onto "eth1" with a vendor hack). There
+ * are no GPY211 PHYs on this board, so port 5 and gmac1 are unused.
+ */
+/delete-node/ &phy5;
+/delete-node/ &phy6;
+
+&gmac1 {
+	/delete-property/ phy-handle;
+	status = "disabled";
+};
+
+&switch {
+	ports {
+		/delete-node/ port@5;
+
+		port@0 {
+			label = "lan0";
+			phy-handle = <&swphy0>;
+		};
+
+		port@1 {
+			label = "lan1";
+			phy-handle = <&swphy1>;
+		};
+
+		port@2 {
+			label = "lan2";
+			phy-handle = <&swphy2>;
+		};
+
+		port@3 {
+			label = "lan3";
+			phy-handle = <&swphy3>;
+		};
+
+		port@4 {
+			phy-handle = <&swphy4>;
+		};
+	};
+
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/*
+		 * Port LED setup from the stock /sbin/arc_switch script; the
+		 * MT7531 LED controller is shared and programmed through PHY 0.
+		 */
+		swphy0: phy@0 {
+			reg = <0>;
+
+			mediatek,led-config = <
+				0x21 0x8009 /* BASIC_CTRL */
+				0x24 0xc007 /* LED0_ON_CTRL */
+				0x25 0x003f /* LED0_BLINK_CTRL */
+				0x26 0xc007 /* LED1_ON_CTRL */
+				0x27 0x003f /* LED1_BLINK_CTRL */
+			>;
+		};
+
+		swphy1: phy@1 {
+			reg = <1>;
+		};
+
+		swphy2: phy@2 {
+			reg = <2>;
+		};
+
+		swphy3: phy@3 {
+			reg = <3>;
+		};
+
+		swphy4: phy@4 {
+			reg = <4>;
+		};
+	};
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c_pins>;
+	status = "okay";
+
+	wm8960: codec@1a {
+		compatible = "wlf,wm8960";
+		reg = <0x1a>;
+	};
+};
+
+&pio {
+	i2c_pins: i2c-pins {
+		mux {
+			function = "i2c";
+			groups = "i2c";
+		};
+	};
+
+	spic_pins_g1: spi1-pins-23-to-26 {
+		mux {
+			function = "spi";
+			groups = "spi1_1";
+		};
+	};
+};
+
+/* Not enabled in the stock DTS */
+&uart1 {
+	status = "disabled";
+};
+
+/* SLIC (Si32xx) on spi1_1 pins; there is no mainline driver for it */
+&spi1 {
+	pinctrl-0 = <&spic_pins_g1>;
+	status = "disabled";
+};
+
+&watchdog {
+	status = "okay";
+};

@@ -231,6 +231,7 @@ platform_do_upgrade() {
 	acer,predator-w6d|\
 	acer,vero-w6m|\
 	airpi,ap3000m|\
+	arcadyan,futura|\
 	arcadyan,mozart|\
 	glinet,gl-mt2500|\
 	glinet,gl-mt2500-airoha|\
@@ -523,6 +524,7 @@ platform_copy_config() {
 	acer,predator-w6d|\
 	acer,vero-w6m|\
 	airpi,ap3000m|\
+	arcadyan,futura|\
 	arcadyan,mozart|\
 	glinet,gl-mt2500|\
 	glinet,gl-mt2500-airoha|\

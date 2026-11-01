@@ -27,6 +27,9 @@ acer,predator-w6x-ubootmod)
 alwaylink,m01k43)
 	ucidef_set_led_netdev "wan" "WAN" "blue:wan" "wan"
 	;;
+arcadyan,futura)
+	ucidef_set_led_netdev "internet" "Internet" "green:wan" "wan" "link tx rx"
+	;;
 asus,rt-ax52|\
 asus,rt-ax57m|\
 snr,snr-cpe-ax2)

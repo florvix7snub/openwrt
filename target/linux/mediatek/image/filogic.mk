@@ -431,6 +431,19 @@ define Device/airtel_aap4221zy
 endef
 TARGET_DEVICES += airtel_aap4221zy
 
+define Device/arcadyan_futura
+  DEVICE_VENDOR := Arcadyan
+  DEVICE_MODEL := Futura
+  DEVICE_DTS := mt7986a-arcadyan-futura
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7986-firmware mt7986-wo-firmware kmod-usb3 \
+	e2fsprogs f2fsck mkf2fs
+  SUPPORTED_DEVICES := arcadyan,futura
+  KERNEL_INITRAMFS_SUFFIX := -recovery.itb
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+TARGET_DEVICES += arcadyan_futura
+
 define Device/arcadyan_mozart
   DEVICE_VENDOR := Arcadyan
   DEVICE_MODEL := Mozart

@@ -46,6 +46,9 @@ mediatek_setup_interfaces()
 	comfast,cf-wa933-ubi)
 		ucidef_set_interfaces_lan_wan "lan1 lan2" wan
 		;;
+	arcadyan,futura)
+		ucidef_set_interfaces_lan_wan "lan0 lan1 lan2 lan3" wan
+		;;
 	arcadyan,mozart)
 		ucidef_set_interfaces_lan_wan "lan0 eth1" eth2
 		;;
